@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Generator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+        }
+        form {
+            display: flex;
+            flex-direction: column;
+        }
+        label, input {
+            margin-bottom: 10px;
+        }
+        input[type="submit"] {
+            background-color: #4CAF50;
+            color: white;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        input[type="submit"]:hover {
+            background-color: #45a049;
+        }
+        #result img {
+            max-width: 100%;
+            height: auto;
+        }
+        .placeholder {
+            width: 100%;
+            height: 200px;
+            background-color: #f0f0f0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 18px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <form method="post" enctype="multipart/form-data">
+        <label for="prompt">Prompt:</label>
+        <input type="text" id="prompt" name="prompt" required>
+        <label for="batch_size">Batch Size:</label>
+        <input type="number" id="batch_size" name="batch_size" value="1" min="1">
+        <input type="submit" value="Generate Image">
+    </form>
+    <div id="result"></div>
+    <script>
+        document.querySelector('form').onsubmit = function(e) {
+            e.preventDefault();
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<div class="placeholder">Generating image...</div>';
+            fetch('/gen', {
+                method: 'POST',
+                body: new FormData(this)
+            })
+            .then(response => response.json())
+            .then(data => {
+                const jobId = data.job_id;
+                const checkResult = () => {
+                    fetch(`/status/${jobId}`)
+                    .then(response => {
+                        if (response.headers.get('content-type').startsWith('image/')) {
+                            return response.blob();
+                        } else {
+                            return response.json();
+                        }
+                    })
+                    .then(result => {
+                        if (result instanceof Blob) {
+                            const img = document.createElement('img');
+                            img.src = URL.createObjectURL(result);
+                            resultDiv.innerHTML = '';
+                            resultDiv.appendChild(img);
+                            setTimeout(checkResult, 2000);
+                        } else {
+                            // If it's JSON, check the status
+                            console.log('Received JSON response:', result);
+                            if (result.status !== "completed") {
+                                setTimeout(checkResult, 2000);
+                            } else {
+                                fetch(`/result/${jobId}`)
+                                    .then(response => response.blob())
+                                    .then(blob => {
+                                        const img = document.createElement('img');
+                                        img.src = URL.createObjectURL(blob);
+                                        resultDiv.innerHTML = '';
+                                        resultDiv.appendChild(img);
+                                    })
+                                    .catch(error => {
+                                        resultDiv.textContent = 'Error fetching final image: ' + error;
+                                    });
+                            }
+                        }
+                    })
+                    .catch(error => {
+                        resultDiv.textContent = 'Error: ' + error;
+                    });
+                };
+                checkResult();
+            })
+            .catch(error => {
+                resultDiv.textContent = 'Error: ' + error;
+            });
+        };
+    </script>
+</body>
+</html>
