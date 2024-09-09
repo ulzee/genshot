@@ -53,8 +53,21 @@
     <form method="post" enctype="multipart/form-data">
         <label for="prompt">Prompt:</label>
         <input type="text" id="prompt" name="prompt" required>
-        <label for="batch_size">Batch Size:</label>
-        <input type="number" id="batch_size" name="batch_size" value="1" min="1">
+        <fieldset>
+            <legend>Batch Size:</legend>
+            <div>
+                <input type="radio" id="batch_size_1" name="batch_size" value="1" checked>
+                <label for="batch_size_1">1</label>
+            </div>
+            <div>
+                <input type="radio" id="batch_size_4" name="batch_size" value="4">
+                <label for="batch_size_4">4</label>
+            </div>
+            <div>
+                <input type="radio" id="batch_size_9" name="batch_size" value="9">
+                <label for="batch_size_9">9</label>
+            </div>
+        </fieldset>
         <input type="submit" value="Generate Image">
     </form>
     <div id="result"></div>
@@ -63,7 +76,7 @@
             e.preventDefault();
             const resultDiv = document.getElementById('result');
             resultDiv.innerHTML = '<div class="placeholder">Generating image...</div>';
-            fetch('/gen', {
+            fetch('https://prpxt83wj6.execute-api.us-west-2.amazonaws.com/gen', {
                 method: 'POST',
                 body: new FormData(this)
             })
@@ -71,7 +84,7 @@
             .then(data => {
                 const jobId = data.job_id;
                 const checkResult = () => {
-                    fetch(`/status/${jobId}`)
+                    fetch(`https://prpxt83wj6.execute-api.us-west-2.amazonaws.com/status/${jobId}`)
                     .then(response => {
                         if (response.headers.get('content-type').startsWith('image/')) {
                             return response.blob();
@@ -87,29 +100,30 @@
                             resultDiv.appendChild(img);
                             setTimeout(checkResult, 2000);
                         } else {
-                            // If it's JSON, check the status
                             console.log('Received JSON response:', result);
                             if (result.status !== "completed") {
                                 setTimeout(checkResult, 2000);
                             } else {
-                                fetch(`/result/${jobId}`)
-                                    .then(response => response.blob())
-                                    .then(blob => {
-                                        const img = document.createElement('img');
-                                        img.src = URL.createObjectURL(blob);
-                                        resultDiv.innerHTML = '';
-                                        resultDiv.appendChild(img);
-                                    })
-                                    .catch(error => {
-                                        resultDiv.textContent = 'Error fetching final image: ' + error;
-                                    });
+                                fetch(`https://prpxt83wj6.execute-api.us-west-2.amazonaws.com/result/${jobId}`)
+                                .then(response => response.blob())
+                                .then(blob => {
+                                    const img = document.createElement('img');
+                                    img.src = URL.createObjectURL(blob);
+                                    resultDiv.innerHTML = '';
+                                    resultDiv.appendChild(img);
+                                })
+                                .catch(error => {
+                                    resultDiv.textContent = 'Error fetching final image: ' + error;
+                                });
                             }
                         }
                     })
                     .catch(error => {
-                        resultDiv.textContent = 'Error: ' + error;
+                        resultDiv.textContent = 'Error checking status: ' + error;
                     });
                 };
+
+                // Start the fetch loop
                 checkResult();
             })
             .catch(error => {
